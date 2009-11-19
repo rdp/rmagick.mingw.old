@@ -55,8 +55,16 @@ def check_multiple_imagemagick_versions()
    path.each do |dir|
       file = File.join(dir, "Magick-config")
       if File.executable? file
-         vers = `#{file} --version`.chomp.strip
-         prefix = `#{file} --prefix`.chomp.strip
+        
+
+        if RUBY_PLATFORM =~ /mingw/
+             shell = "bash.exe"
+        else
+             shell = ""
+        end                
+        
+         vers = `#{shell} #{file} --version`.chomp.strip
+         prefix = `#{shell} #{file} --prefix`.chomp.strip
          versions << [vers, prefix, dir]
       end
    end
@@ -100,8 +108,9 @@ end
 
 
 
-# Magick-config is not available on Windows
-if RUBY_PLATFORM !~ /mswin|mingw/
+# Magick-config is not available on mswin (mingw ok, though)
+
+if RUBY_PLATFORM !~ /mswin/
 
   # Check for compiler. Extract first word so ENV['CC'] can be a program name with arguments.
   cc = (ENV["CC"] or Config::CONFIG["CC"] or "gcc").split(' ').first
@@ -116,9 +125,17 @@ if RUBY_PLATFORM !~ /mswin|mingw/
 
   check_multiple_imagemagick_versions()
 
+
+  if RUBY_PLATFORM =~ /mingw/
+     magick_config = 'bash.exe Magick-config'
+  else
+     magick_config = 'Magick-config'
+  end
+
+
   # Ensure minimum ImageMagick version
   unless checking_for("ImageMagick version >= #{MIN_IM_VERS}")  do
-    version = `Magick-config --version`.chomp.tr(".","").to_i
+    version = `#{magick_config} --version`.chomp.tr(".","").to_i
     version >= MIN_IM_VERS_NO
   end
     exit_failure "Can't install RMagick #{RMAGICK_VERS}. You must have ImageMagick #{MIN_IM_VERS} or later.\n"
@@ -126,26 +143,37 @@ if RUBY_PLATFORM !~ /mswin|mingw/
 
 
 
-
-  $magick_version = `Magick-config --version`.chomp
+  $magick_version = `#{magick_config} --version`.chomp
 
   # Ensure ImageMagick is not configured for HDRI
   unless checking_for("HDRI disabled version of ImageMagick") do
-    not (`Magick-config --version`["HDRI"])
+    not (`#{magick_config} --version`["HDRI"])
   end
     exit_failure "\nCan't install RMagick #{RMAGICK_VERS}."+
            "\nRMagick does not work when ImageMagick is configured for High Dynamic Range Images."+
            "\nDon't use the --enable-hdri option when configuring ImageMagick.\n"
   end
 
+
   # Save flags
-  $CFLAGS     = ENV["CFLAGS"].to_s   + " " + `Magick-config --cflags`.chomp
-  $CPPFLAGS   = ENV["CPPFLAGS"].to_s + " " + `Magick-config --cppflags`.chomp
-  $LDFLAGS    = ENV["LDFLAGS"].to_s  + " " + `Magick-config --ldflags`.chomp
-  $LOCAL_LIBS = ENV["LIBS"].to_s     + " " + `Magick-config --libs`.chomp
+  $CFLAGS     = ENV["CFLAGS"].to_s   + " " + `#{magick_config} --cflags`.chomp
+  $CPPFLAGS   = ENV["CPPFLAGS"].to_s + " " + `#{magick_config} --cppflags`.chomp
+  $LDFLAGS    = ENV["LDFLAGS"].to_s  + " " + `#{magick_config} --ldflags`.chomp
+  $LOCAL_LIBS = ENV["LIBS"].to_s     + " " + `#{magick_config} --libs`.chomp
+  
+  if RUBY_PLATFORM =~ /mingw/
+    # we want the full path so...
+    version = find_executable("Magick-config")[0..-19].split('\\')[-1] # strip out the version from "c:\\dev\\ruby\\downloads\\ImageMagick-6.5.6\\bin/Magick-config"
+  
+    prefix = find_executable("Magick-config")[0..-19] # full path
+    for string in [$LOCAL_LIBS, $LDFLAGS, $CPPFLAGS, $CFLAGS]
+      string.gsub!('/' + version, prefix)
+    end
+  end
+  
 
 elsif RUBY_PLATFORM =~ /mingw/  # mingw
-
+  # never get here
   `convert -version` =~ /Version: ImageMagick (\d+\.\d+\.\d+)-\d+ /
   abort "Unable to get ImageMagick version" unless $1
   $magick_version = $1
@@ -170,7 +198,6 @@ end
 headers = %w{assert.h ctype.h stdio.h stdlib.h math.h time.h}
 headers << "stdint.h" if have_header("stdint.h")  # defines uint64_t
 headers << "sys/types.h" if have_header("sys/types.h")
-
 
 if have_header("wand/MagickWand.h")
    headers << "wand/MagickWand.h"
