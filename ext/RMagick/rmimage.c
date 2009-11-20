@@ -3072,7 +3072,7 @@ Image_constitute(VALUE class, VALUE width_arg, VALUE height_arg
     rm_check_image_exception(image, DestroyOnError);
 
     (void) DestroyExceptionInfo(&exception);
-    DestroyConstitute();
+    // huh? DestroyConstitute();
 
     return rm_image_new(image);
 }

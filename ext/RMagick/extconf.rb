@@ -167,13 +167,17 @@ if RUBY_PLATFORM !~ /mswin/
   
     prefix = find_executable("Magick-config")[0..-19] # full path
     for string in [$LOCAL_LIBS, $LDFLAGS, $CPPFLAGS, $CFLAGS]
-      string.gsub!('/' + version, prefix)
+      # the next line necessary only for their distributed version of it http://www.imagemagick.org/script/binary-releases.php
+      # which is broken anyway, so leave it commented out
+      # string.gsub!('/' + version, prefix)
+      string.sub!('/c', 'c:')
     end
   end
   
 
-elsif RUBY_PLATFORM =~ /mingw/  # mingw
-  # never get here
+elsif RUBY_PLATFORM =~ /mingw/  # we never get here
+  # we never get here
+  # never got this one to work--where are the .h files? Where do you pull them from?
   `convert -version` =~ /Version: ImageMagick (\d+\.\d+\.\d+)-\d+ /
   abort "Unable to get ImageMagick version" unless $1
   $magick_version = $1
